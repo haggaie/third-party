@@ -24,7 +24,7 @@
 # final image.
 
 # Build ccache.
-FROM ubuntu:16.04 as ccache
+FROM ubuntu:20.04 as ccache
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV CCACHE_DEPS autoconf automake build-essential libmemcached-dev
@@ -46,42 +46,44 @@ RUN touch ccache.1
 RUN make DESTDIR=/output install
 
 # Build our customized version of scapy.
-FROM ubuntu:16.04 as scapy-vxlan
+FROM ubuntu:20.04 as scapy-vxlan
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
-ENV SCAPY_VXLAN_DEPS python python3 python-pip python3-pip \
+ENV SCAPY_VXLAN_DEPS curl python2 python3 python3-pip \
                      python-setuptools python3-setuptools
 RUN mkdir -p /output/usr/local
 ENV PYTHONUSERBASE=/output/usr/local
 COPY ./scapy-vxlan /scapy-vxlan/
 WORKDIR /scapy-vxlan/
 RUN apt-get update && apt-get install -y --no-install-recommends $SCAPY_VXLAN_DEPS
-RUN pip install --user --ignore-installed wheel
+RUN curl https://bootstrap.pypa.io/get-pip.py --output get-pip.py && \
+  python2 get-pip.py
 RUN pip3 install --user --ignore-installed wheel
-RUN pip install --user --ignore-installed .
+RUN PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user --ignore-installed .
 # this customized build does not support python3. Just install a recent scapy...
 RUN pip3 install --user --ignore-installed scapy
 
 # Build PTF.
-FROM ubuntu:16.04 as ptf
+FROM ubuntu:20.04 as ptf
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV PTF_DEPS build-essential libpcap-dev python python3 python-dev python3-dev \
-    python-pip python3-pip python-setuptools python3-setuptools
+    python3-pip python-setuptools python3-setuptools curl
 RUN mkdir -p /output/usr/local
 ENV PYTHONUSERBASE=/output/usr/local
 COPY ./ptf /ptf/
 WORKDIR /ptf/
 RUN apt-get update && apt-get install -y --no-install-recommends $PTF_DEPS
-RUN pip install --user --ignore-installed wheel
+RUN curl https://bootstrap.pypa.io/get-pip.py --output get-pip.py && \
+  python2 get-pip.py
 RUN pip3 install --user --ignore-installed wheel
-RUN pip install --user --ignore-installed pypcap
-RUN pip install --user --ignore-installed .
+RUN PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user --ignore-installed pypcap
+RUN PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user --ignore-installed .
 RUN pip3 install --user --ignore-installed pypcap
 RUN pip3 install --user --ignore-installed .
 
 # Build nanomsg.
-FROM ubuntu:16.04 as nanomsg
+FROM ubuntu:20.04 as nanomsg
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV NANOMSG_DEPS build-essential cmake
@@ -98,11 +100,11 @@ RUN cmake ..
 RUN make DESTDIR=/output install
 
 # Build nnpy.
-FROM ubuntu:16.04 as nnpy
+FROM ubuntu:20.04 as nnpy
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV NNPY_DEPS build-essential libffi-dev python python3 python-dev python3-dev \
-    python-pip python3-pip python-setuptools python3-setuptools
+    curl python3-pip python-setuptools python3-setuptools
 ENV CFLAGS="-Os"
 ENV CXXFLAGS="-Os"
 ENV LDFLAGS="-Wl,-s"
@@ -112,25 +114,26 @@ COPY --from=nanomsg /output/usr/local /usr/local/
 COPY ./nnpy /nnpy/
 WORKDIR /nnpy/
 RUN apt-get update && apt-get install -y --no-install-recommends $NNPY_DEPS
-RUN pip install --user --ignore-installed wheel
+RUN curl https://bootstrap.pypa.io/get-pip.py --output get-pip.py && \
+  python2 get-pip.py
 RUN pip3 install --user --ignore-installed wheel
-RUN pip install --user --ignore-installed cffi
-RUN pip install --user --ignore-installed .
+RUN PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user --ignore-installed cffi
+RUN PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user --ignore-installed .
 RUN pip3 install --user --ignore-installed cffi
 RUN pip3 install --user --ignore-installed .
 
 # Build Thrift.
-FROM ubuntu:16.04 as thrift
+FROM ubuntu:20.04 as thrift
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV THRIFT_DEPS automake \
                 bison \
                 build-essential \
+                curl \
                 flex \
                 libboost-dev \
                 libboost-test-dev \
                 libevent-dev \
-                libssl1.0.0 \
                 libssl-dev \
                 libtool \
                 pkg-config \
@@ -138,7 +141,6 @@ ENV THRIFT_DEPS automake \
                 python3 \
                 python-dev \
                 python3-dev \
-                python-pip \
                 python3-pip \
                 python-setuptools \
                 python3-setuptools
@@ -150,6 +152,8 @@ ENV PYTHONUSERBASE=/output/usr/local
 COPY ./thrift /thrift/
 WORKDIR /thrift/
 RUN apt-get update && apt-get install -y --no-install-recommends $THRIFT_DEPS
+RUN curl https://bootstrap.pypa.io/get-pip.py --output get-pip.py && \
+  python2 get-pip.py
 RUN ./bootstrap.sh
 RUN ./configure --with-cpp=yes \
                 --with-python=yes \
@@ -163,7 +167,7 @@ RUN ./configure --with-cpp=yes \
 RUN make
 RUN make DESTDIR=/output install-strip
 WORKDIR /thrift/lib/py/
-RUN pip install --user --ignore-installed .
+RUN PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user --ignore-installed .
 RUN pip3 install --user --ignore-installed .
 
 # Build Protocol Buffers.
@@ -173,7 +177,7 @@ RUN pip3 install --user --ignore-installed .
 # correct versions directly in the repo is preferable anyway. These versions
 # are old, though, so they're walled off in the `protobuf-deps` directory. Our
 # own projects should use a more recent release.
-FROM ubuntu:16.04 as protobuf
+FROM ubuntu:20.04 as protobuf
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV PROTOCOL_BUFFERS_DEPS autoconf \
@@ -239,17 +243,18 @@ RUN cat *.pth | grep -v "import sys" | sort -u > docker_protobuf.pth
 # The gRPC build system should detect that a version of protobuf is already
 # installed and should not try to install the third-party one included as a
 # submodule in the grpc repository.
-FROM ubuntu:16.04 as grpc
+FROM ubuntu:20.04 as grpc
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV GRPC_DEPS autoconf \
               automake \
               build-essential \
+              cmake \
               cython \
+              curl \
               libtool \
               python-dev \
               python3-dev \
-              python-pip \
               python3-pip \
               python-setuptools \
               python3-setuptools
@@ -261,18 +266,24 @@ RUN ldconfig
 COPY ./grpc /grpc/
 WORKDIR /grpc/
 RUN apt-get update && apt-get install -y --no-install-recommends $GRPC_DEPS
-RUN make prefix=/output/usr/local
-RUN make prefix=/output/usr/local install
+RUN curl https://bootstrap.pypa.io/get-pip.py --output get-pip.py && \
+  python2 get-pip.py
+RUN mkdir -p cmake/build && \
+    cd cmake/build && \
+    cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF \
+          -DCMAKE_INSTALL_PREFIX=/output/usr/local \
+          ../.. && \
+    make -j && make install
 # We don't use `--ignore-installed` here because otherwise we won't use the
 # installed version of the protobuf python package that we copied from the
 # protobuf build image.
-RUN pip install --user -rrequirements.txt
+RUN PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user -rrequirements.txt
 RUN pip3 install --user -rrequirements.txt
-RUN env GRPC_PYTHON_BUILD_WITH_CYTHON=1 pip install --user --ignore-installed .
+RUN env GRPC_PYTHON_BUILD_WITH_CYTHON=1 PYTHONPATH=/usr/lib/python2.7/site-packages pip install --user --ignore-installed .
 RUN env GRPC_PYTHON_BUILD_WITH_CYTHON=1 pip3 install --user --ignore-installed .
 
 # Build libyang
-FROM ubuntu:16.04 as libyang
+FROM ubuntu:20.04 as libyang
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 ENV LIBYANG_DEPS build-essential \
@@ -291,7 +302,7 @@ RUN cmake ..
 RUN make DESTDIR=/output install
 
 # Build sysrepo
-FROM ubuntu:16.04 as sysrepo
+FROM ubuntu:20.04 as sysrepo
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 # protobuf-c is not installed as part of the protobuf image build above (it is a
@@ -322,16 +333,16 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=Off -DCALL_TARGET_BINS_DIR
 RUN make DESTDIR=/output install
 
 # Construct the final image.
-FROM ubuntu:16.04
+FROM ubuntu:20.04
 MAINTAINER Seth Fowler <sfowler@barefootnetworks.com>
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAKEFLAGS=-j2
 RUN CCACHE_RUNTIME_DEPS="libmemcached-dev" && \
-    SCAPY_VXLAN_RUNTIME_DEPS="python-minimal python3-minimal" && \
-    PTF_RUNTIME_DEPS="libpcap-dev python-minimal python3-minimal tcpdump" && \
-    NNPY_RUNTIME_DEPS="python-minimal python3-minimal" && \
-    THRIFT_RUNTIME_DEPS="libssl1.0.0 python-minimal" && \
-    GRPC_RUNTIME_DEPS="python-minimal python-setuptools python3-minimal python3-setuptools" && \
+    SCAPY_VXLAN_RUNTIME_DEPS="python2-minimal python3-minimal" && \
+    PTF_RUNTIME_DEPS="libpcap-dev python2-minimal python3-minimal tcpdump" && \
+    NNPY_RUNTIME_DEPS="python2-minimal python3-minimal" && \
+    THRIFT_RUNTIME_DEPS="libssl-dev python2-minimal" && \
+    GRPC_RUNTIME_DEPS="python2-minimal python-setuptools python3-minimal python3-setuptools" && \
     SYSREPO_RUNTIME_DEPS="libpcre3 libavl1 libev4 libprotobuf-c1" && \
     apt-get update && \
     apt-get install -y --no-install-recommends $CCACHE_RUNTIME_DEPS \
